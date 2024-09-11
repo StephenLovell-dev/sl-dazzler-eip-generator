@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "sl-dazzler-eip-generator"
+version = "0.1.0"
+description = "Lamabds that generates a new json file containing the next items to be played out on a channel.  This file is generated each time a new item starts to play in a Media live schedule."
+authors = ["Stephen Lovell <stephen.lovell@bbc.co.uk>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+isodate = "^0.6.1"
+urllib3 = "^1.26.17"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+commitizen = "^2.38.0"
+coverage = "^7.0.0"
+boto3 = "^1.35.16"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
