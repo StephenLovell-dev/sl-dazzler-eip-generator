@@ -1,0 +1,59 @@
+[
+  {
+    "duration": "PT59M",
+    "pid": "w3ct03s9w4hqx2g4",
+    "uri": "crid://bbc.co.uk/w/3000523365",
+    "release_date": "2020-11-02",
+    "title": "Africa Eye - 02/11/2020 GMT",
+    "versionCrid": "crid://bbc.co.uk/w/4000605959",
+    "vpid": "w4hqx2g4",
+    "live": false,
+    "insertionType": "",
+    "entityType": "episode",
+    "availability": {
+      "planned_start": "2020-11-02T09:59:00Z",
+      "expected_start": "2020-11-02T11:08:00Z",
+      "actual_start": "2020-11-01T17:27:02.919Z"
+    },
+    "status": "",
+    "action": ""
+  },
+  {
+    "duration": "PT2M21S",
+    "pid": "p084kklwp084lfpl",
+    "uri": "crid://bbc.co.uk/p/233250662",
+    "release_date": "2020-02-24",
+    "title": "Could Africa cope with the new coronavirus?",
+    "versionCrid": "crid://bbc.co.uk/p/233276694",
+    "vpid": "p084lfpl",
+    "live": false,
+    "insertionType": "",
+    "entityType": "episode",
+    "availability": {
+      "planned_start": "2020-02-24T10:49:50Z",
+      "expected_start": "2020-02-24T11:02:11Z",
+      "actual_start": "2020-02-24T14:42:03.358Z"
+    },
+    "status": "",
+    "action": ""
+  },
+  {
+    "duration": "PT2M11S",
+    "pid": "p08c4p1wp08cr5j6",
+    "uri": "crid://bbc.co.uk/p/239331344",
+    "release_date": "2020-06-12",
+    "title": "East Africa's biggest locust swarms in 70 years",
+    "versionCrid": "crid://bbc.co.uk/p/239882440",
+    "vpid": "p08cr5j6",
+    "live": false,
+    "insertionType": "",
+    "entityType": "episode",
+    "availability": {
+      "planned_start": "2020-05-04T07:43:29Z",
+      "expected_start": "2020-05-04T07:55:40Z",
+      "actual_start": "2020-05-09T15:29:51.710Z"
+    },
+    "status": "",
+    "action": ""
+  }
+]

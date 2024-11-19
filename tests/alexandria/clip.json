@@ -1,0 +1,51 @@
+{
+    "took" : 23,
+    "timed_out" : false,
+    "_shards" : {
+      "total" : 1,
+      "successful" : 1,
+      "skipped" : 0,
+      "failed" : 0
+    },
+    "hits" : {
+      "total" : 1,
+      "max_score" : 12.602212,
+      "hits" : [
+        {
+          "_index" : "clip-2023-08-21",
+          "_type" : "clip",
+          "_id" : "pid.p0jnh4f8",
+          "_score" : 12.602212,
+          "_source" : {
+            "pips" : {
+              "title_hierarchy" : {
+                "titles" : [
+                  {
+                    "title" : {
+                      "$" : "WS iPlayer background 10 second"
+                    }
+                  },
+                  {
+                    "inherited_from" : {
+                      "link" : {
+                        "rel" : "pips-meta:brand",
+                        "pid" : "p097tp7m"
+                      }
+                    },
+                    "title" : {
+                      "$" : "Dazzler Clips"
+                    }
+                  }
+                ]
+              },
+              "clip" : {
+                "title" : {
+                  "$" : "WS iPlayer background 10 second"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }

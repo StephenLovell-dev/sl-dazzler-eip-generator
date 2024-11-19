@@ -1,4 +1,3 @@
-from dazzler.schedule import datetime_isoformat
 from isodate import parse_duration, parse_datetime, duration_isoformat
 import re
 from medialivehelpers.graphics import profile_map, ratings_table
@@ -42,14 +41,12 @@ def addGraphicsOverlay(item):
 def actionName(item):
     if item is None:
         return ''
-    startdt = parse_datetime(item['start'])
-    start = datetime_isoformat(startdt)
-    aname = start.replace(":", "").replace("-", "")
-    if 'duration' in item:
+    aname = item['start'].replace(":", "'")
+    if 'start' in item and 'end' in item:
+        duration = duration_isoformat(parse_datetime(item['end']) - parse_datetime(item['start']))
+        aname = aname + ' ' + duration
+    elif 'duration' in item:
         aname = aname + ' ' + duration_isoformat(parse_duration(item['duration']))
-    elif 'start' in item and 'end' in item:
-        duration = duration_isoformat(parse_datetime(item['end']) - startdt)
-        aname = aname + ' ' + duration 
     if 'stream' in item:
         aname = aname + ' ' + truncate_middle(item['stream'], 10)
     elif 'origin' in item:
@@ -60,77 +57,63 @@ def actionName(item):
         aname = aname + ' ' + addGraphicsOverlay(item)
     return aname
 
-def startAndDurationStringsFromActionName(name):
-    print('startAndDurationStringsFromActionName', name)
-    r = re.search(r"(\d\d\d\d)(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)\.(\d\d\d)Z (-?P[^ ]+)", name)
-    if r is None:
-        print("regex failed: r is None")
-        return None, None        
-    g = r.groups()
-    dateString = "-".join(g[0:3])
-    timeString = ":".join(g[3:6])
-    startString = f"{dateString}T{timeString}.{g[6]}Z"
-    return startString, g[-1]
-
-def graphicsRatingAndProfileFromActionName(name):
-    parts = name.split(' ')
-    if not parts[-1].endswith('i'):
-        return None, None
-    graphics = parts[-1]
-    gp = graphics.split(',')
-    rating = ratings_table[int(gp[0], 16)]
-    profile_index = int(gp[1][:-1], 16)
-    p = [p for p in profile_map if profile_map[p]['index']==profile_index]
-    profile = p[0]
-    return rating, profile
-
-def startAndDurationFromAction(action):
-    if action is None or 'ActionName' not in action:
-        print(f'Error: no ActionName in {action}')
-        return None, None
-    name = action['ActionName']
-    if name is None:
-        return None, None
-    ss, ds = startAndDurationStringsFromActionName(name)
-    if ss is None:
-        return None, None
-    start = parse_datetime(ss)
-    duration = parse_duration(ds)
+def startAndDurationFromActionName(name):
+    print('startAndDurationFromActionName', name)
+    start = None
+    duration = None
+    if name is not None:
+        r = re.search(r"(\d\d\d\d)(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)\.(\d\d\d)Z (-?P[^ ]+)", name)
+        if r is None: # accept old names during upgrade
+            print("startAndDurationFromAction: Trying old regex...", name)
+            r = re.search(r"\d+-\d+-\d+T\d\d'\d\d'\d\d(.\d\d\d)?Z P", name)
+            if r is not None:
+                parts = name.split(' ')
+                start = parse_datetime(parts[0].replace("'", ':'))
+                duration = parse_duration(parts[1])
+                print('start', parts[0], start)
+                return start, duration
+        if r is not None:
+            g = r.groups()
+            dateString = "-".join(g[0:3])
+            timeString = ":".join(g[3:6])
+            startString = f"{dateString}T{timeString}.{g[6]}Z"
+            start = parse_datetime(startString)
+            duration = parse_duration(g[-1])
+        else:
+            print("regex failed: r is None")            
     return start, duration
-
-def startFromAction(action):
-    if 'ActionName' not in action:
-        print(f'Error: no ActionName in {action}')
-        return None
-    ss, ds = startAndDurationStringsFromActionName(action['ActionName'])
-    if ss is None:
-        return None
-    return parse_datetime(ss)
 
 class Action:
 
-    def __init__(self, name, date=None):
+    def __init__(self, name, date):
         self._name = name
-        self._rating = None
-        self._profile = None
+        parts = name.split(' ')
         if name == 'Initial Channel Input':
             self._start = date
-            self._duration = "PT30S"
-            return
-        ss, ds = startAndDurationStringsFromActionName(name)
-        if ss is None or ds is None:
-            self._start = date
             self._duration = "PT0S"
-            return
-        self._start = parse_datetime(ss)
-        self._duration = ds
-        self._rating, self._profile = graphicsRatingAndProfileFromActionName(name)
+        elif 'T' in name:
+            self._start = parse_datetime(parts[0].replace("'", ':'))
+            if len(parts)>1:
+                self._duration = parts[1]
+        else:
+            self._start = date
+            self._duration = 'PT0S'
+        if parts[-1].endswith('i'):
+            graphics = parts[-1]
+            gp = graphics.split(',')
+            self._rating = ratings_table[int(gp[0], 16)]
+            profile_index = int(gp[1][:-1], 16)
+            p = [p for p in profile_map if profile_map[p]['index']==profile_index]
+            self._profile = p[0]
+        else:
+            self._rating = None
+            self._profile = None
 
     def __eq__(self, obj):
         if obj.start() != self._start:
-            return False 
+            return False
         if obj.duration() != self._duration:
-            return False   
+            return False
         if obj.name() != self._name:
             return False
         return True

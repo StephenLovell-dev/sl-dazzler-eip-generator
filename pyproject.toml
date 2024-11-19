@@ -4,18 +4,38 @@ version = "0.1.0"
 description = "Lamabds that generates a new json file containing the next items to be played out on a channel.  This file is generated each time a new item starts to play in a Media live schedule."
 authors = ["Stephen Lovell <stephen.lovell@bbc.co.uk>"]
 readme = "README.md"
+packages = [
+    {include = "dazzler_now_next"},
+    {include = "dazzler"},
+    {include = "log"},
+    {include = "medialivehelpers"}
+]
+
+[tool]
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.1.27"
+tag_format = "v$version"
 
 [tool.poetry.dependencies]
 python = "^3.12"
+isodate = "^0.7.2"
+pytz = "^2024.2"
+urllib3 = "^2.2.3"
 requests = "^2.32.3"
-isodate = "^0.6.1"
-urllib3 = "^1.26.17"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.3"
+responses = "^0.25.3"
+coverage = "^7.6.7"
+boto3 = "^1.35.63"
+testfixtures = "^8.3.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
-commitizen = "^2.38.0"
-coverage = "^7.0.0"
-boto3 = "^1.35.16"
+commitizen = "^3.31.0"
+pre-commit = "^4.0.1"
+pre-commit-poetry-export = "^0.1.2"
+pipdeptree = "^2.23.4"
 
 [build-system]
 requires = ["poetry-core"]

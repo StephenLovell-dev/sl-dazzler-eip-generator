@@ -1,0 +1,75 @@
+{
+    "took" : 63,
+    "timed_out" : false,
+    "_shards" : {
+      "total" : 1,
+      "successful" : 1,
+      "skipped" : 0,
+      "failed" : 0
+    },
+    "hits" : {
+      "total" : 1001,
+      "max_score" : null,
+      "hits" : [
+        {
+            "_index" : "episode_v0.3_2024_03-23",
+            "_type" : "episode",
+            "_id" : "pid.w172vzf825zksdf",
+            "_score" : null,
+            "_source" : {
+              "sonata" : {
+                "episode" : {
+                  "aggregatedTitle" : "01/01/2018 GMT"
+                }
+              },
+              "pips" : {
+                "episode" : {
+                  "presentation_title" : {
+                    "$" : "01/01/2018 GMT"
+                  },
+                  "ids" : {
+                    "id" : [
+                      {
+                        "$" : "crid://bbc.co.uk/w/30004117571514809800",
+                        "authority" : "world_service",
+                        "type" : "crid"
+                      },
+                      {
+                        "$" : "w172vzf825zksdf",
+                        "authority" : "pips",
+                        "type" : "pid"
+                      }
+                    ]
+                  },
+                  "pid" : "w172vzf825zksdf",
+                  "title" : { }
+                },
+                "title_hierarchy" : {
+                  "titles" : [
+                    {
+                      "presentation_title" : {
+                        "$" : "01/01/2018 GMT"
+                      }
+                    },
+                    {
+                      "inherited_from" : {
+                        "link" : {
+                          "rel" : "pips-meta:brand",
+                          "pid" : "w13xttlw"
+                        }
+                      },
+                      "title" : {
+                        "$" : "दुनिया"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "sort" : [
+              "01/01/2018 GMT"
+            ]
+          }
+      ]
+    }
+}

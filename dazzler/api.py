@@ -11,6 +11,7 @@ from medialivehelpers.action import Action, truncate_middle, startAndDurationFro
 from medialivehelpers.schedule import Schedule as MediaLiveSchedule
 from dazzler.schedule import Schedule as DazzlerSchedule
 from dazzler.emergencyplaylist import Playlist
+from dazzler.profiling import logStart, logEnd
 
 alex = []
 
@@ -31,29 +32,6 @@ def query(entityType, pid):
         }
     }[entityType]
 
-def alextitle(e, entityType):
-    item = e['_source']['pips'][entityType]
-    if 'title' in item and '$' in item['title']:
-        title = item['title']['$']
-    elif 'presentation_title' in item and '$' in item['presentation_title']:
-        title = item['presentation_title']['$']
-    else:
-        title = None
-    th = e['_source']['pips']['title_hierarchy']
-    return title, th
-
-def titleFromAlexandria(entityType, pid):
-    global alex
-    e = [e for e in alex if e['_source']['pips'][entityType]['pid'] == pid]
-    print(alex, pid)
-    if len(e) > 0:
-        return alextitle(e[0], entityType)
-    r = requests.post(f'https://{os.environ["ES_HOST"]}/{entityType}/_search', json=query(entityType, pid))
-    h = r.json()['hits']['hits']
-    if len(h)>0:
-        return alextitle(h[0], entityType)
-    return None, None
-
 def addStartTimeSeparators(start):
     ns = start
     r = re.search(r"(\d\d\d\d)(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)\.(\d\d\d)Z", start) 
@@ -67,6 +45,16 @@ def addStartTimeSeparators(start):
     else:
        ns = start.replace("'", ":")
     return ns
+
+def alextitle(e, entity_type):
+    item = e[entity_type]
+    title = item.get('title', { '$': None })['$']
+    if title is None:
+        title = item.get('presentation_title', { '$': None })['$']
+    return title, e.get('title_hierarchy', None)
+
+def titleFromAlexandria(e, p):
+    return None, None
 
 def actionNameToItem(actionName, epl, schedule):
     parts = actionName.split(' ')
@@ -108,25 +96,27 @@ def actionNameToItem(actionName, epl, schedule):
                 si['title_hierarchy'] = titleHeirarchy
     return si
 
-def scheduleItemToItem(item):
-    si = { 'source': 'sched' }
-    if 'title' in item:
-        si['title'] = item['title']
+def scheduleItemToItem(item, alex):
+    si = { 'source': 'sched'}
+    for key in item:
+        if key in ['title', 'vpid', 'start', 'duration']:
+            si[key] = item[key]
+        elif key == 'pid':
+            si['epid'] = item[key]
+        elif key == 'entityType':
+            si['entity_type'] = item['entityType']
+    if 'title' in si or alex is None:
+        return si
+    if si['entity_type'] == 'episode':
+        e = [e for e in alex['episodes'] if e['episode']['pid'] == item['pid']]
     else:
-        title, titleHeirarchy = titleFromAlexandria(item['entityType'], item['pid'])
+        e = [e for e in alex['clips'] if e['clip']['pid'] == item['pid']]
+    if len(e) > 0:
+        title, titleHeirarchy = alextitle(e[0], si['entity_type'])
         if title is not None:
             si['title'] = title
         if titleHeirarchy is not None:
             si['title_hierarchy'] = titleHeirarchy
-    for key in item:
-        if key in ['vpid', 'start', 'duration']:
-            si[key] = item[key]
-        elif key == 'pid':
-            si['epid'] = item[key]
-        elif key == 'pid':
-            si['pid'] = item[key]
-        elif key == 'entityType':
-            si['entity_type'] = item['entityType']
     return si
 
 def item(si):
@@ -140,12 +130,13 @@ def item(si):
 def getChannelTitle(channel):
     if 'Tags' in channel:
         if 'epid' in channel['Tags']:
-            title, titleHeirarchy = titleFromAlexandria('epsiode', channel['Tags']['epid'])
+            title, titleHeirarchy = titleFromAlexandria('episode', channel['Tags']['epid'])
             return title, titleHeirarchy
     return None, None
 
-def nowNext(cc, ml, s3, qsp):
-    hours = int(qsp.get('hours', '3'))
+def nowNext(cc, ml, s3, hours):
+    sid = cc.getSid()
+    start = logStart(sid, 'nowNext')
     cd = ml.describe_channel(ChannelId = cc.getChannelId())
     chTitle, chTitleHierarchy = getChannelTitle(cd)
     pd = cd['PipelineDetails']
@@ -184,28 +175,43 @@ def nowNext(cc, ml, s3, qsp):
         nownext['title'] = chTitle
     if chTitleHierarchy is not None:
         nownext['title_hierarchy'] = chTitleHierarchy
+    logEnd(sid, 'nowNext', start)    
 
     return nownext
 
-def setalex(val):
-    global alex
-    alex = val
-
-def fetchtitles(items):
-    global alex
-    pids = set([i['pid'] for i in items])
-    print('F', pids)
-    q = {
-        '_source': [
-            "pips.episode.pid",
-            "pips.episode.title",
-            "pips.episode.presentation_title",
-            "pips.title_hierarchy",
-        ], 
-        'query': { 'terms': { 'pips.episode.pid': list(pids) } }
-    }
-    r = requests.post(f'https://{os.environ["ES_HOST"]}/_search', json=q)
-    setalex(r.json()['hits']['hits'])
+def fetchtitles(sid, episodeItems, clipItems):
+    start = logStart(sid, 'fetchtitles')
+    episodes = []
+    if len(episodeItems) > 0:
+        pids = set([i['pid'] for i in episodeItems])
+        print('F episodes', pids)
+        q = {
+            '_source': [
+                "pips.episode.pid",
+                "pips.episode.title",
+                "pips.episode.presentation_title",
+                "pips.title_hierarchy",
+            ], 
+            'query': { 'terms': { 'pips.episode.pid': list(pids) } }
+        }
+        r = requests.post(f'https://{os.environ["ES_HOST"]}/_search', json=q)
+        episodes.extend([i['_source']['pips'] for i in r.json()['hits']['hits']])
+    clips = []
+    if len(clipItems) > 0:
+        pids = set([i['pid'] for i in clipItems])
+        print('F clips', pids)
+        q = {
+            '_source': [
+                "pips.clip.pid",
+                "pips.clip.title", 
+                "pips.title_hierarchy",
+            ], 
+            'query': { 'terms': { 'pips.clip.pid': list(pids) } }
+        }
+        r = requests.post(f'https://{os.environ["ES_HOST"]}/_search', json=q)
+        clips.extend([i['_source']['pips'] for i in r.json()['hits']['hits']])
+    logEnd(sid, 'fetchtitles', start)
+    return { 'episodes': episodes, 'clips': clips }
 
 def onnow(item):
     s = parse_datetime(item['start'])
@@ -216,75 +222,99 @@ def onnow(item):
     return True
 
 def scheduleOnly(cc, s3):
+    sid = cc.getSid()
+    start = logStart(sid, 'scheduleOnly')
     dz = DazzlerSchedule(cc, s3)
-    epl = Playlist(cc, s3).get()
-    n = datetime_isoformat(datetime.now(timezone.utc))
     scheduleItems = dz.upcomingItems(datetime.now(timezone.utc) - timedelta(hours=4), datetime.now(timezone.utc) + timedelta(hours=4))
     c = [s for s in scheduleItems if onnow(s)]
     if len(c) == 0:
-          return {
+        logEnd(sid, 'scheduleOnly - schedule not found', start)
+        return {
             'statusCode': 404,
             'body': 'not found',
         }
     current = c[0]
     upcoming = [s for s in scheduleItems if s['start'] > current['start']]
-    fetchtitles([current] + upcoming)
+    items = [current] + upcoming
+    episodeItems = [e for e in items if e['entityType'] == 'episode' and 'title' not in e]
+    clipItems = [c for c in items if c['entityType'] == 'clip' and 'title' not in c]
+    if len(episodeItems) > 0 or len(clipItems) > 0:
+        alex = fetchtitles(sid, episodeItems, clipItems)
+    else:
+        alex = None
+    now = scheduleItemToItem(current, alex)
+    next = [scheduleItemToItem(s, alex) for s in upcoming]
+    logEnd(sid, 'scheduleOnly', start)
     return {
         'status': 'not_running',
-        'now': scheduleItemToItem(current),
-        'next': [scheduleItemToItem(s) for s in upcoming],
+        'now': now,
+        'next': next,
     }
 
-def apiMain(region_name, sid, table, qsp, ml=None):
-    cc = ChannelConfiguration(sid, table)
-    rd = cc.getRegionData(region_name)
-    s3 = cc.getS3(region_name)
-    if rd is None:
-        return {
-            'statusCode': 200,
-            'body': json.dumps(scheduleOnly(cc, s3))
-        }
-    if 'schedule_only' in qsp and (qsp['schedule_only'] == 'true' or qsp['schedule_only'] == '1'):
-        return {
-            'statusCode': 200,
-            'body': json.dumps(scheduleOnly(cc, s3))
-        }
+def mediaLivePlusSchedule(cc, region_name, sid, hours, ml, s3):
+    start = logStart(sid, 'mediaLivePlusSchedule')
     if ml is None:
+        mlstart = logStart(sid, 'cc.getML')
         ml = cc.getML(region_name)
+        logEnd(sid, 'cc.getML', mlstart)
+    mllcstart =logStart(sid, 'ml.list_channels()')
     channels = ml.list_channels()
+    logEnd(sid, 'cc.getML', mllcstart)
     for channel in channels['Channels']:
         if sid in channel['Name']:
             print(channel['Name'], channel['Id'])
             cc.setChannelId(channel['Id'])
-            s = nowNext(cc, ml, s3, qsp)
-            t = json.dumps(s)
-            return {
-                'statusCode': 200,
-                'body': t
-            }
+            s = nowNext(cc, ml, s3, hours)
+            logEnd(sid, 'mediaLivePlusSchedule', start)
+            return s
+    logEnd(sid, 'mediaLivePlusSchedule - channel not found', start)
+
+def apiMain(cc, region_name, sid, schedule_only, hours, ml=None):
+    apiMainStart = logStart(sid, 'apiMain')
+    start = logStart(sid, 'cc = ChannelConfiguration(sid, table)')
+    logEnd(sid, 'cc = ChannelConfiguration(sid, table)', start)
+    s3 = cc.getS3(region_name)
+    if schedule_only:
+        r = scheduleOnly(cc, s3)
+        logEnd(sid, 'apiMain > now/next from schedule_only', apiMainStart)
+    else:
+        r = mediaLivePlusSchedule(cc, region_name, sid, hours, ml, s3)
+        logEnd(sid, 'apiMain > now/next from medialive and schedule', apiMainStart)
+    if r is not None:
+        return {
+            'statusCode': 200,
+            'body': json.dumps(r)
+        }
     return {
         'statusCode': 404,
         'body': 'not found',
     }
 
 def handleApiCall(event, table_name):
+    path_values = event['requestContext']['http']['path'].split('/')
+    if (len(path_values)) != 3:
+        return
+    [n, sid, region_name] = path_values
     if 'queryStringParameters' in event:
         qsp = event['queryStringParameters']
-        print(qsp)
+        schedule_only = qsp.get('schedule_only', '0') in ['true', '1']
+        hours = int(qsp.get('hours', '3'))
     else:
-        qsp = {}
-    try: 
-        path_values = event['requestContext']['http']['path'].split('/')
-        if (len(path_values)) != 3:
-            return
-        [n, sid, region_name] = path_values
+        hours = 3
+        schedule_only = False
+    try:
+        start = logStart(sid, 'handleApiCall')
         if len(sid) > 0 and len(region_name) > 0:
             dynamodb = boto3.resource('dynamodb', region_name=region_name)
             table = dynamodb.Table(table_name)
-            return apiMain(region_name, sid, table, qsp)
+            cc = ChannelConfiguration(sid, table)
+            res = apiMain(cc, region_name, sid, schedule_only, hours)
+            logEnd(sid,'handleApiCall', start)
+            return res
+        logEnd(sid,'handleApiCall 404', start)
         return {
             'statusCode': 404,
             'body': 'path must be /<sid>/<region>',
-        }
+        }  
     except ClientError as e:
         return e
