@@ -12,7 +12,7 @@ class TestMain:
         assert lambda_handler({}, None) is None
         del os.environ['DYNAMO_DB']
 
-    @patch('dazzler_now_next.index.handleApiCall')
+    @patch('dazzler_nexts_generator.index.handleApiCall')
     def test_lambda_handler_ok(self, handleApiCall):
         handleApiCall.return_value='OK'
         os.environ['DYNAMO_DB'] = 'test'
