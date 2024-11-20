@@ -202,3 +202,13 @@ class ChannelConfiguration():
             return self._getItem(region)
         except:
             return None
+        
+    def getShouldGenerateUpcoming(self):
+        se = self._getItem('secondary_events')
+        if se is not None:
+            if 'overlays' in se:
+                for item in se['overlays']:
+                    if 'type' in item:
+                        if item['type'] == 'interstitial':
+                            return True
+        return False
