@@ -53,7 +53,16 @@ def alextitle(e, entity_type):
         title = item.get('presentation_title', { '$': None })['$']
     return title, e.get('title_hierarchy', None)
 
-def titleFromAlexandria(e, p):
+def titleFromAlexandria(entityType, pid):
+    global alex
+    e = [e for e in alex if e['_source']['pips'][entityType]['pid'] == pid]
+    print(alex, pid)
+    if len(e) > 0:
+        return alextitle(e[0], entityType)
+    r = requests.post(f'https://{os.environ["ES_HOST"]}/{entityType}/_search', json=query(entityType, pid))
+    h = r.json()['hits']['hits']
+    if len(h)>0:
+        return alextitle(h[0], entityType)
     return None, None
 
 def actionNameToItem(actionName, epl, schedule):
@@ -133,6 +142,44 @@ def getChannelTitle(channel):
             title, titleHeirarchy = titleFromAlexandria('episode', channel['Tags']['epid'])
             return title, titleHeirarchy
     return None, None
+
+def createUpcoming(cc, active, region_name):
+    sid = cc.getSid()
+    start = logStart(sid, 'nowNext')
+    ml = cc.getML(region_name)
+    cd = ml.describe_channel(ChannelId = cc.getChannelId())
+    chTitle, chTitleHierarchy = getChannelTitle(cd)
+   
+    cd = ml.describe_channel(ChannelId = cc.getChannelId())
+    currentStart, currentDuration = startAndDurationFromActionName(active)
+    scheduleObject = MediaLiveSchedule(cc.getSid(), cc.getChannelId(), ml)
+    mlSchedule = [s for s in scheduleObject.describe().itemNames() if 'Z P' in s]
+    if len(mlSchedule) == 0:
+        return {'status': 'running, not scheduled' }
+    s3 = cc.getS3(region_name)
+    dz = DazzlerSchedule(cc, s3)
+    epl = Playlist(cc, s3).get()
+    lastStart, lastDuration = startAndDurationFromActionName(mlSchedule[-1])
+    endOfMlSchedule = lastStart + lastDuration
+    scheduleItems = dz.upcomingItems(currentStart, endOfMlSchedule)
+    upcoming = []
+    for actionName in mlSchedule:
+        if ' sched ' in actionName or ' loop ' in actionName:
+            s, d = startAndDurationFromActionName(actionName)
+            if s >= currentStart + currentDuration:
+                upcoming.append(actionNameToItem(actionName, epl, scheduleItems))
+    
+    next = {
+        'status': 'running',
+        'next': upcoming,
+    }
+    if chTitle is not None:
+        next['title'] = chTitle
+    if chTitleHierarchy is not None:
+        next['title_hierarchy'] = chTitleHierarchy
+    logEnd(sid, 'nowNext', start)    
+
+    return next
 
 def nowNext(cc, ml, s3, hours):
     sid = cc.getSid()
