@@ -1,11 +1,20 @@
+import array
 import boto3
 import json
+import os
 from datetime import timedelta
 from dazzler.channelconfiguration import ChannelConfiguration
 from medialivehelpers.action import startAndDurationFromActionName
 from medialivehelpers.schedule import Schedule as MediaLiveSchedule
 from dazzler.api import createUpcoming
 
+def writeUpcomingFile(sid, data):
+    client = boto3.client('s3')
+    parts = os.environ["CHANNEL_FILES_DESTINATION"].replace('s3://','').split('/')
+    bucket = parts[0]
+    key = os.environ["CHANNEL_FILES_DESTINATION"].replace(f"s3://{parts[0]}/",'') + f"{sid}.json"
+    print(bucket, key)
+    client.put_object(Body=json.dumps(data), Bucket=bucket, Key=key)
 
 def extractChannelSidFromInputName(inputName):
     elements=inputName.split(' ')
@@ -24,7 +33,7 @@ def cantProcess(msg):
     return {
         'statusCode': 203,
         'body': json.dumps(msg)
-    }   
+    }
 
 def main(event, tableName):
     msg = 'not enough info to process!'
@@ -53,6 +62,7 @@ def main(event, tableName):
                     result = createUpcoming(cc, action, region_name)
                     if 'next' in result:
                         print(sid, result)
+                        writeUpcomingFile(sid, result)
                         return {
                             'statusCode': 200,
                             'body': json.dumps(result)
@@ -63,6 +73,13 @@ def main(event, tableName):
 
 if __name__ == '__main__':
     # Local testing
+    # ES_HOST
+    # test: search-test-pws-es-exozet-hyouszlg2ugjrx2qe4djugyqtu.eu-west-1.es.amazonaws.com
+    # live: vpc-live-pws-es-nkhq5ogzg2xgystvbp2drojivi.eu-west-1.es.amazonaws.com
+    # CHANNEL_FILES_DESTINATION
+    # test: s3://ws-dazzler-assets-test/steve_sid/
+    os.environ["ES_HOST"]='search-test-pws-es-exozet-hyouszlg2ugjrx2qe4djugyqtu.eu-west-1.es.amazonaws.com'
+    os.environ["CHANNEL_FILES_DESTINATION"]='s3://ws-dazzler-assets-test/steve_sid/'
     tableName = 'Dazzler-test'
     event = {
             "version": "0",

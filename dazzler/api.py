@@ -54,15 +54,18 @@ def alextitle(e, entity_type):
     return title, e.get('title_hierarchy', None)
 
 def titleFromAlexandria(entityType, pid):
-    global alex
-    e = [e for e in alex if e['_source']['pips'][entityType]['pid'] == pid]
-    print(alex, pid)
-    if len(e) > 0:
-        return alextitle(e[0], entityType)
-    r = requests.post(f'https://{os.environ["ES_HOST"]}/{entityType}/_search', json=query(entityType, pid))
-    h = r.json()['hits']['hits']
-    if len(h)>0:
-        return alextitle(h[0], entityType)
+    try:
+        global alex
+        e = [e for e in alex if e['_source']['pips'][entityType]['pid'] == pid]
+        print(alex, pid)
+        if len(e) > 0:
+            return alextitle(e[0], entityType)
+        r = requests.post(f'https://{os.environ["ES_HOST"]}/{entityType}/_search', json=query(entityType, pid))
+        h = r.json()['hits']['hits']
+        if len(h)>0:
+            return alextitle(h[0], entityType)
+    except Exception as err:
+        print(f"Unexpected {err=}, {type(err)=}")
     return None, None
 
 def actionNameToItem(actionName, epl, schedule):
